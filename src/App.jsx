@@ -192,24 +192,25 @@ function App() {
 
       {/* App Shell - 100dvh ensures it fits visible screen area, correcting for browser bars */}
       <Box sx={{
-        height: '100dvh',
+        bgcolor: 'rgba(9, 9, 11, 0.95)',
+        backdropFilter: 'blur(12px)',
+        position: 'fixed', // Anchored to viewport
+        top: 0,
+        left: 0,
+        right: 0,
+        zIndex: 20,
+        borderBottom: '1px solid',
+        borderColor: 'divider',
         display: 'flex',
-        flexDirection: 'column',
-        overflow: 'hidden' // Prevent body scroll
+        justifyContent: 'center' // Center the inner content
       }}>
-
-        {/* Top Header */}
         <Box sx={{
+          width: '100%',
+          maxWidth: 412, // Maintain mobile width for internal content
           p: 2,
-          bgcolor: 'rgba(9, 9, 11, 0.95)',
-          backdropFilter: 'blur(12px)',
-          zIndex: 20,
-          borderBottom: '1px solid',
-          borderColor: 'divider',
           display: 'flex',
           flexDirection: 'column',
-          gap: 2,
-          flexShrink: 0 // Don't shrink
+          gap: 2
         }}>
           {/* Top Row: Title + Settings */}
           <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
@@ -269,7 +270,7 @@ function App() {
             )}
           />
 
-          {/* Hidden File Input & Audio */}
+          {/* Hidden File Input */}
           <input
             type="file"
             ref={fileInputRef}
@@ -279,24 +280,22 @@ function App() {
             multiple
             style={{ display: 'none' }}
           />
-          <audio
-            ref={audioRef}
-            style={{
-              position: 'fixed',
-              bottom: 0,
-              left: 0,
-              opacity: 0,
-              pointerEvents: 'none',
-              zIndex: -1
-            }}
-            playsInline
-            autoPlay={false}
-            controls={isIOSSafari()}
-          />
         </Box>
+      </Box>
 
+      {/* Main Content Area - Scrollable with Padding for Fixed Bars */}
+      {/* Header is roughly 120px tall, Footer is 140px tall. Adding padding to body content */}
+      <Box sx={{
+        flex: 1,
+        overflow: 'hidden',
+        position: 'relative',
+        display: 'flex',
+        flexDirection: 'column',
+        pt: '130px', // Space for fixed header
+        pb: '140px', // Space for fixed footer
+      }}>
         {isScanning && (
-          <Box sx={{ px: 2, py: 1, bgcolor: 'background.paper', borderBottom: '1px solid', borderColor: 'divider', flexShrink: 0 }}>
+          <Box sx={{ px: 2, py: 1, bgcolor: 'background.paper', borderBottom: '1px solid', borderColor: 'divider' }}>
             <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.5 }}>
               <Typography variant="caption" color="text.secondary">Scanning...</Typography>
               <Typography variant="caption" color="text.secondary">
@@ -306,27 +305,23 @@ function App() {
             <LinearProgress variant="determinate" value={progress.total > 0 ? (progress.current / progress.total) * 100 : 0} sx={{ height: 2, borderRadius: 1 }} />
           </Box>
         )}
+        <TrackList tracks={filteredTracks} onPlay={handlePlay} onFilterChange={handleFilter} currentTrack={currentTrack} isPlaying={isPlaying} />
+      </Box>
 
-        {/* Main Content Area - Scrollable */}
-        <Box sx={{
-          flex: 1,
-          overflowY: 'auto', // Enable internal scrolling
-          overflowX: 'hidden',
-          display: 'flex',
-          flexDirection: 'column',
-          position: 'relative'
-        }}>
-          <TrackList tracks={filteredTracks} onPlay={handlePlay} onFilterChange={handleFilter} currentTrack={currentTrack} isPlaying={isPlaying} />
-        </Box>
-
-        {/* Player Bar - Fixed to bottom of Flex Container */}
-        <Box sx={{
-          zIndex: 20,
-          flexShrink: 0,
-          borderTop: '1px solid',
-          borderColor: 'divider',
-          pb: 'env(safe-area-inset-bottom)' // Respect iOS Home Bar
-        }}>
+      {/* Player Bar - Anchored Fixed Bottom */}
+      <Box sx={{
+        position: 'fixed',
+        bottom: 0,
+        left: 0,
+        right: 0,
+        zIndex: 20,
+        display: 'flex',
+        justifyContent: 'center',
+        bgcolor: '#191A23', // Background needs to be on container to cover full width
+        borderTop: '1px solid',
+        borderColor: 'divider',
+      }}>
+        <Box sx={{ width: '100%', maxWidth: 412 }}>
           <PlayerBar
             isPlaying={isPlaying}
             onTogglePlay={togglePlay}
@@ -341,7 +336,6 @@ function App() {
             onPrevious={() => playPrevious()}
           />
         </Box>
-
       </Box>
 
       <SettingsDialog

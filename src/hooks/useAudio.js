@@ -26,9 +26,9 @@ export function useAudio(onTrackEnd) {
     }, [queue, currentTrack, onTrackEnd]);
 
     // Media Session API Integration
-
-    // 1. Manage Artwork Blob URL Lifecycle
     useEffect(() => {
+        if (!('mediaSession' in navigator)) return;
+
         const cleanupArtwork = () => {
             if (artworkUrlRef.current) {
                 URL.revokeObjectURL(artworkUrlRef.current);
@@ -36,41 +36,23 @@ export function useAudio(onTrackEnd) {
             }
         };
 
-        if (currentTrack?.picture && currentTrack.picture instanceof Blob) {
-            cleanupArtwork();
-            try {
-                artworkUrlRef.current = URL.createObjectURL(currentTrack.picture);
-            } catch (e) {
-                console.warn("Failed to create artwork URL", e);
-            }
-        } else if (!currentTrack) {
-            cleanupArtwork();
-        }
-
-        return cleanupArtwork;
-    }, [currentTrack]);
-
-    // 2. Sync Media Session Metadata & State
-    useEffect(() => {
-        if (!('mediaSession' in navigator)) return;
-
-        navigator.mediaSession.playbackState = isPlaying ? 'playing' : 'paused';
-
         if (currentTrack) {
-            // Construct artwork array using the stable ref
+            // Generate artwork URL if picture exists
             let artwork = [];
-            if (artworkUrlRef.current && currentTrack.picture) {
-                artwork = [
-                    {
-                        src: artworkUrlRef.current,
-                        sizes: '512x512',
-                        type: currentTrack.picture.type || 'image/jpeg'
-                    }
-                ];
+            cleanupArtwork(); // Clean previous one first
+
+            if (currentTrack.picture && currentTrack.picture instanceof Blob) {
+                try {
+                    const url = URL.createObjectURL(currentTrack.picture);
+                    artworkUrlRef.current = url;
+                    artwork = [
+                        { src: url, sizes: '512x512', type: currentTrack.picture.type }
+                    ];
+                } catch (e) {
+                    console.warn("Failed to create artwork URL for Media Session", e);
+                }
             }
 
-            // Always update metadata when track or playing state changes
-            // This ensures it persists even if browser clears it (e.g. after pause/play cycle)
             navigator.mediaSession.metadata = new MediaMetadata({
                 title: currentTrack.title || 'Unknown Title',
                 artist: currentTrack.artist || 'Unknown Artist',
@@ -79,18 +61,18 @@ export function useAudio(onTrackEnd) {
             });
         } else {
             navigator.mediaSession.metadata = null;
+            cleanupArtwork();
         }
 
-        // Optional: Update position state if needed for perfect integration
-        // if (duration > 0) {
-        //     navigator.mediaSession.setPositionState({
-        //         duration: duration,
-        //         playbackRate: 1.0,
-        //         position: currentTime
-        //     });
-        // }
+        return cleanupArtwork;
+    }, [currentTrack]);
 
-    }, [currentTrack, isPlaying]); // Update on isPlaying to force-refresh metadata on Chrome if needed
+
+
+    useEffect(() => {
+        if (!('mediaSession' in navigator)) return;
+        navigator.mediaSession.playbackState = isPlaying ? 'playing' : 'paused';
+    }, [isPlaying]);
 
 
 
@@ -114,38 +96,21 @@ export function useAudio(onTrackEnd) {
         const current = currentTrackRef.current;
 
         // 1. If same track, just update play/pause state
+        // Note: Use weak comparison or id check
         if (current?.id === track.id) {
             togglePlay();
             return;
         }
 
-        // 2. Cleanup previous track
-        if (audio.src) {
-            audio.pause();
-            // Do NOT revoke audio.src directly if we are managing it via ref, 
-            // but for safety in legacy mode we normally would. 
-            // Here we rely on currentBlobUrlRef.
-            audio.removeAttribute('src'); // Clear src
-        }
-
-        // Fix: Revoke old blob URL
-        if (currentBlobUrlRef.current) {
-            URL.revokeObjectURL(currentBlobUrlRef.current);
-            currentBlobUrlRef.current = null;
-        }
-
-        // 3. Resolve the File
+        // 2. Resolve the File (ASYNC) - Do this BEFORE pausing to keep session alive
         let file = track.file;
 
         // If no direct file (refresh case), try to resolve from handle
         if (!file && track.handle) {
             try {
                 // Verify permission
+                // Note: queryPermission is async. 
                 if ((await track.handle.queryPermission({ mode: 'read' })) !== 'granted') {
-                    // This request must be triggered by user activation.
-                    // Since playTrack is called from onClick, it should work, 
-                    // BUT async/await boundaries can sometimes break gesture token tracking in strict browsers.
-                    // However, requestPermission is usually lenient if close enough in call stack.
                     const perm = await track.handle.requestPermission({ mode: 'read' });
                     if (perm !== 'granted') {
                         console.warn("Permission denied for file handle");
@@ -164,11 +129,25 @@ export function useAudio(onTrackEnd) {
             return;
         }
 
-        // 4. Play
-        try {
-            const url = URL.createObjectURL(file);
-            currentBlobUrlRef.current = url; // Store ref
+        // 3. Prepare new URL
+        const url = URL.createObjectURL(file);
 
+        // 4. STOP and SWAP (Synchronous part)
+        // Now we swap safely.
+        if (audio.src) {
+            audio.pause();
+            // We don't strictly need to removeAttribute 'src' if we overwrite it immediately.
+            // Leaving it effectively "swaps" the stream.
+        }
+
+        // Cleanup old blob URL
+        if (currentBlobUrlRef.current) {
+            URL.revokeObjectURL(currentBlobUrlRef.current);
+        }
+        currentBlobUrlRef.current = url; // Update ref
+
+        // 5. Play
+        try {
             audio.src = url;
             audio.load(); // Ensure it loads
 
@@ -179,6 +158,10 @@ export function useAudio(onTrackEnd) {
             setCurrentTrack(track);
             // Sync ref immediately for safety
             currentTrackRef.current = track;
+
+            // Explicitly update metadata immediately? 
+            // The useEffect will handle it, but there might be a race. 
+            // UseEffect [currentTrack] should be fast enough.
         } catch (e) {
             console.error("Playback failed:", e);
             // Don't set isPlaying true if failed

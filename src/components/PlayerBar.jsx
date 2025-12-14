@@ -1,5 +1,5 @@
 import React from 'react';
-import { Play, Pause, SkipBack, SkipForward, Volume2, Music } from 'lucide-react';
+import { Play, Pause, SkipBack, SkipForward, Volume2, Music, Heart, Shuffle } from 'lucide-react';
 import { Box, Typography, Slider, IconButton, Stack } from '@mui/material';
 import { ArtistLinks } from './ArtistLinks';
 
@@ -30,13 +30,17 @@ export function PlayerBar({
     onVolumeChange,
     onFilter,
     onNext,
-    onPrevious
+    onPrevious,
+    isLiked,
+    onLikeToggle,
+    isShuffle,
+    onToggleShuffle
 }) {
     const formatTime = (time) => {
         if (!time) return '0:00';
         const minutes = Math.floor(time / 60);
         const seconds = Math.floor(time % 60);
-        return `${minutes}:${seconds.toString().padStart(2, '0')}`;
+        return `${minutes}:${seconds.toString().padStart(2, '0')} `;
     };
 
     return (
@@ -51,7 +55,9 @@ export function PlayerBar({
         }}>
             {/* Progress Bar - Top Edge */}
             {/* Using Slider but styled to look like the thin bar in Figma */}
-            <Box sx={{ width: '100%', height: 4, position: 'relative', mt: -2 /* Pull up to edge */ }}>
+            {/* Progress Bar - Top Edge */}
+            {/* Using Slider but styled to look like the thin bar in Figma */}
+            <Box sx={{ width: '100%', height: 8, position: 'relative', mt: -2 /* Pull up to edge */, pt: '2px', px: 4 }}>
                 <Slider
                     size="small"
                     value={currentTime}
@@ -59,14 +65,14 @@ export function PlayerBar({
                     onChange={(_, value) => onSeek(value)}
                     sx={{
                         color: 'primary.main',
-                        height: 2,
+                        height: 4,
                         padding: 0,
                         '& .MuiSlider-thumb': {
                             width: 0,
                             height: 0,
                             '&:hover, &.Mui-focusVisible, &.Mui-active': {
-                                width: 8,
-                                height: 8,
+                                width: 12,
+                                height: 12,
                             },
                             transition: 'width 0.2s, height 0.2s'
                         },
@@ -122,25 +128,67 @@ export function PlayerBar({
             </Box>
 
             {/* Controls - Bottom Row */}
-            <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 4, mb: 1 }}>
-                <IconButton onClick={onPrevious} sx={{ color: 'text.primary' }}>
-                    <SkipBack size={24} />
-                </IconButton>
-                <IconButton
-                    onClick={onTogglePlay}
-                    sx={{
-                        bgcolor: 'primary.main',
-                        color: 'white',
-                        width: 48,
-                        height: 48,
-                        '&:hover': { bgcolor: 'primary.dark' }
-                    }}
-                >
-                    {isPlaying ? <Pause size={28} /> : <Play size={28} />}
-                </IconButton>
-                <IconButton onClick={onNext} sx={{ color: 'text.primary' }}>
-                    <SkipForward size={24} />
-                </IconButton>
+            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', px: 2, mb: 1, width: '100%' }}>
+
+                {/* Left Spacer for Balance - Now with Heart & Shuffle */}
+                <Box sx={{ width: 100, display: 'flex', justifyContent: 'flex-start', gap: 1 }}>
+                    <IconButton
+                        onClick={onLikeToggle}
+                        color={isLiked ? "primary" : "default"}
+                        disabled={!currentTrack}
+                    >
+                        <Heart size={24} fill={isLiked ? "currentColor" : "none"} />
+                    </IconButton>
+                    <IconButton
+                        onClick={onToggleShuffle}
+                        color={isShuffle ? "primary" : "default"}
+                    >
+                        <Shuffle size={20} />
+                    </IconButton>
+                </Box>
+
+                {/* Center Controls */}
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 3 }}>
+                    <IconButton onClick={onPrevious} sx={{ color: 'text.primary' }}>
+                        <SkipBack size={24} />
+                    </IconButton>
+                    <IconButton
+                        onClick={onTogglePlay}
+                        sx={{
+                            bgcolor: 'primary.main',
+                            color: 'white',
+                            width: 48,
+                            height: 48,
+                            '&:hover': { bgcolor: 'primary.dark' }
+                        }}
+                    >
+                        {isPlaying ? <Pause size={28} /> : <Play size={28} />}
+                    </IconButton>
+                    <IconButton onClick={onNext} sx={{ color: 'text.primary' }}>
+                        <SkipForward size={24} />
+                    </IconButton>
+                </Box>
+
+                {/* Right Volume */}
+                <Box sx={{ width: 100, display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 1 }}>
+                    <Volume2 size={20} style={{ color: 'rgba(255,255,255,0.7)' }} />
+                    <Slider
+                        size="small"
+                        value={volume}
+                        min={0}
+                        max={1}
+                        step={0.01}
+                        onChange={(_, v) => onVolumeChange(v)}
+                        sx={{
+                            width: 60,
+                            color: 'text.secondary',
+                            '& .MuiSlider-thumb': {
+                                width: 12,
+                                height: 12,
+                            }
+                        }}
+                    />
+                </Box>
             </Box>
         </Box>
     );

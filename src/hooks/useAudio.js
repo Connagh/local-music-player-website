@@ -277,6 +277,15 @@ export function useAudio(onTrackEnd) {
         }
     }, [togglePlay]);
 
+    const [isShuffle, setIsShuffle] = useState(false);
+    const isShuffleRef = useRef(isShuffle);
+
+    useEffect(() => {
+        isShuffleRef.current = isShuffle;
+    }, [isShuffle]);
+
+    const toggleShuffle = useCallback(() => setIsShuffle(p => !p), []);
+
     // Helper to get latest play state without closure staleness
     const playNext = useCallback(() => {
         const currentQueue = queueRef.current;
@@ -284,16 +293,16 @@ export function useAudio(onTrackEnd) {
 
         if (!current || currentQueue.length === 0) return;
 
+        if (isShuffleRef.current) {
+            // Shuffle Logic: Pick random
+            const nextIndex = Math.floor(Math.random() * currentQueue.length);
+            playTrack(currentQueue[nextIndex]);
+            return;
+        }
+
         const currentIndex = currentQueue.findIndex(t => t.id === current.id);
         if (currentIndex === -1 || currentIndex === currentQueue.length - 1) return; // End of playlist
 
-        // We need to call playTrack with the CORRECT object. 
-        // playTrack itself is stable-ish if it doesn't close over state, 
-        // but playTrack does close over queues in some versions? 
-        // Let's check playTrack definition. It uses `setQueue` but doesn't seem to rely on other state 
-        // except `currentTrack` (which we can fix there too) 
-        // Actually, playTrack (line 127) uses `currentTrack?.id` from closure.
-        // We should fix playTrack to be ref-aware or pass args.
         playTrack(currentQueue[currentIndex + 1]);
     }, [playTrack]); // playTrack needs to be stable or we need to fix playTrack too.
 
@@ -450,6 +459,8 @@ export function useAudio(onTrackEnd) {
         playPrevious,
         togglePlay,
         seek,
-        changeVolume
+        changeVolume,
+        isShuffle,
+        toggleShuffle
     };
 }

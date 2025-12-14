@@ -127,8 +127,15 @@ export function TrackList({ tracks, onPlay, onFilter, currentTrack }) {
         );
     };
 
+    const virtuosoRef = React.useRef(null);
+
+    React.useEffect(() => {
+        virtuosoRef.current?.scrollToIndex({ index: 0 });
+    }, [sortedTracks]);
+
     return (
         <Virtuoso
+            ref={virtuosoRef}
             style={{ height: '100%' }}
             data={sortedTracks}
             itemContent={itemContent}

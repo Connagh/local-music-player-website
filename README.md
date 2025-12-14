@@ -5,7 +5,7 @@ A local-first music player that runs entirely in your browser. This application 
 ## Features
 
 - **Local-First Architecture**: Your music plays directly from your device.
-- **Format Support**: Supports common audio formats including MP3, WAV, OGG, and high-quality formats like FLAC and M4A.
+- **Format Support**: Supports common audio formats including MP3, WAV, OGG, FLAC and M4A.
 - **Smart Metadata**: Displays cover art, artist names, albums, and technical details (bitrate, sample rate).
 - **Responsive Design**: Built with **Material UI (MUI)**.
 

@@ -18,12 +18,74 @@ export function useAudio(onTrackEnd) {
     const artworkUrlRef = useRef(null); // Ref for Media Session artwork URL
     const currentBlobUrlRef = useRef(null); // Ref for audio source blob URL
 
+    const nextTrackBlobUrlRef = useRef(null);
+    const nextTrackIdRef = useRef(null);
+
     // Keep refs synced
     useEffect(() => {
         queueRef.current = queue;
         currentTrackRef.current = currentTrack;
         onTrackEndRef.current = onTrackEnd;
     }, [queue, currentTrack, onTrackEnd]);
+
+    // Preload Next Track Logic
+    // This ensures that when the user presses "Next", we have the Blob URL ready 
+    // and can swap the src SYNCHRONOUSLY, preserving the User Gesture token.
+    useEffect(() => {
+        const prepareNextTrack = async () => {
+            const current = currentTrack; // Closure capture or use ref?
+            const currentQ = queue;
+
+            if (!current || currentQ.length === 0) return;
+
+            const currentIndex = currentQ.findIndex(t => t.id === current.id);
+            if (currentIndex === -1 || currentIndex === currentQ.length - 1) {
+                // No next track
+                if (nextTrackBlobUrlRef.current) {
+                    URL.revokeObjectURL(nextTrackBlobUrlRef.current);
+                    nextTrackBlobUrlRef.current = null;
+                    nextTrackIdRef.current = null;
+                }
+                return;
+            }
+
+            const nextTrack = currentQ[currentIndex + 1];
+
+            // If already preloaded, skip
+            if (nextTrackIdRef.current === nextTrack.id && nextTrackBlobUrlRef.current) {
+                return;
+            }
+
+            // Clean up old preload
+            if (nextTrackBlobUrlRef.current) {
+                URL.revokeObjectURL(nextTrackBlobUrlRef.current);
+                nextTrackBlobUrlRef.current = null;
+                nextTrackIdRef.current = null;
+            }
+
+            // Fetch
+            try {
+                let file = nextTrack.file;
+                if (!file && nextTrack.handle) {
+                    // Optimistically try to get file. validation of permission should happen on interaction or assume granted.
+                    // queryPermission might block in background.
+                    file = await nextTrack.handle.getFile();
+                }
+
+                if (file && (file instanceof Blob)) {
+                    const url = URL.createObjectURL(file);
+                    nextTrackBlobUrlRef.current = url;
+                    nextTrackIdRef.current = nextTrack.id;
+                    // console.log("Preloaded next track:", nextTrack.title);
+                }
+            } catch (e) {
+                console.warn("Failed to preload next track", e);
+            }
+        };
+
+        prepareNextTrack();
+    }, [currentTrack, queue]);
+
 
     // Media Session API Integration
     useEffect(() => {
@@ -102,36 +164,44 @@ export function useAudio(onTrackEnd) {
             return;
         }
 
-        // 2. Resolve the File (ASYNC) - Do this BEFORE pausing to keep session alive
-        let file = track.file;
+        let url = null;
+        let isPreloaded = false;
 
-        // If no direct file (refresh case), try to resolve from handle
-        if (!file && track.handle) {
-            try {
-                // Verify permission
-                // Note: queryPermission is async. 
-                if ((await track.handle.queryPermission({ mode: 'read' })) !== 'granted') {
-                    const perm = await track.handle.requestPermission({ mode: 'read' });
-                    if (perm !== 'granted') {
-                        console.warn("Permission denied for file handle");
-                        return;
-                    }
+        // 2. CHECK PRELOAD FIRST
+        if (nextTrackIdRef.current === track.id && nextTrackBlobUrlRef.current) {
+            url = nextTrackBlobUrlRef.current;
+            isPreloaded = true;
+            // Clear refs so we don't revoke it as "old"
+            nextTrackBlobUrlRef.current = null;
+            nextTrackIdRef.current = null;
+        }
+
+        // 3. Resolve the File (ASYNC) if not preloaded
+        // Do this BEFORE pausing to keep session alive
+        if (!url) {
+            let file = track.file;
+
+            // If no direct file (refresh case), try to resolve from handle
+            if (!file && track.handle) {
+                try {
+                    // Optimistically try to get file. 
+                    // Explicit permission queries can hang in background or on iOS.
+                    file = await track.handle.getFile();
+                } catch (e) {
+                    console.error("Error retrieving file from handle", e);
+                    // If this fails, we can't play. 
+                    // Maybe trigger a permission prompt if we were in foreground? 
+                    // But we can't know for sure.
+                    return;
                 }
-                file = await track.handle.getFile();
-            } catch (e) {
-                console.error("Error retrieving file from handle", e);
+            }
+
+            if (!file || !(file instanceof Blob)) {
+                console.error("Invalid file object:", file);
                 return;
             }
+            url = URL.createObjectURL(file);
         }
-
-        if (!file || !(file instanceof Blob)) {
-            console.error("Invalid file object:", file);
-            return;
-        }
-
-        // 3. Prepare new URL
-        const url = URL.createObjectURL(file);
-
         // 4. STOP and SWAP (Synchronous part)
         // Now we swap safely.
         if (audio.src) {
@@ -149,7 +219,7 @@ export function useAudio(onTrackEnd) {
         // 5. Play
         try {
             audio.src = url;
-            audio.load(); // Ensure it loads
+            // Removed audio.load() to minimize buffering gap for gapless-like transition
 
             await audio.play();
 
@@ -159,9 +229,41 @@ export function useAudio(onTrackEnd) {
             // Sync ref immediately for safety
             currentTrackRef.current = track;
 
-            // Explicitly update metadata immediately? 
-            // The useEffect will handle it, but there might be a race. 
-            // UseEffect [currentTrack] should be fast enough.
+            // IMMEDIATE SYNCHRONOUS METADATA UPDATE
+            // This is critical for iOS Lock Screen to update instantly without waiting for React cycle
+            if ('mediaSession' in navigator) {
+                // Cleanup previous artwork url if needed
+                if (artworkUrlRef.current) URL.revokeObjectURL(artworkUrlRef.current);
+                artworkUrlRef.current = null;
+
+                let artwork = [];
+                if (track.picture && track.picture instanceof Blob) {
+                    try {
+                        const artUrl = URL.createObjectURL(track.picture);
+                        artworkUrlRef.current = artUrl;
+                        artwork = [{ src: artUrl, sizes: '512x512', type: track.picture.type }];
+                    } catch (e) { console.warn("Artwork fail", e); }
+                }
+
+                navigator.mediaSession.metadata = new MediaMetadata({
+                    title: track.title || 'Unknown Title',
+                    artist: track.artist || 'Unknown Artist',
+                    album: track.album || 'Unknown Album',
+                    artwork: artwork
+                });
+
+                navigator.mediaSession.playbackState = 'playing';
+
+                // Ensure position state is hinted if possible
+                if ('setPositionState' in navigator.mediaSession) {
+                    navigator.mediaSession.setPositionState({
+                        duration: audio.duration || 0,
+                        playbackRate: audio.playbackRate || 1,
+                        position: 0
+                    });
+                }
+            }
+
         } catch (e) {
             console.error("Playback failed:", e);
             // Don't set isPlaying true if failed

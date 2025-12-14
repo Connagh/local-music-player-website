@@ -2,6 +2,9 @@ import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react'
 
 import { TrackList } from './components/TrackList';
 
+import { isIOSSafari } from './utils/platform';
+import { IOSWarningSnackbar } from './components/IOSWarningSnackbar';
+
 import { PlayerBar } from './components/PlayerBar';
 import { SettingsDialog } from './components/SettingsDialog';
 import { splitArtistString } from './utils/artistUtils';
@@ -10,7 +13,7 @@ import { useAudio } from './hooks/useAudio';
 
 
 import { FolderPlus, Settings } from 'lucide-react';
-import { Box, Typography, Button, IconButton, ToggleButton, ToggleButtonGroup, LinearProgress, Chip, TextField, InputAdornment, Autocomplete } from '@mui/material';
+import { Box, Typography, Button, IconButton, ToggleButton, ToggleButtonGroup, LinearProgress, Chip, TextField, InputAdornment, Autocomplete, ThemeProvider, createTheme, CssBaseline } from '@mui/material';
 
 function App() {
   const { tracks, isScanning, progress, addFolder, addFilesFromInput, resetLibrary, incrementPlayCount, exportUserData, importUserData } = useLibrary();
@@ -38,6 +41,7 @@ function App() {
 
   const [filters, setFilters] = useState([]); // Array of { id, type, value }
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [themeMode, setThemeMode] = useState('dark');
 
   const fileInputRef = useRef(null);
 
@@ -162,140 +166,195 @@ function App() {
 
   // Mobile-first structure:
   // Header (Sticky) -> TrackList (Scrollable) -> PlayerBar (Sticky Bottom)
+  // Create theme based on mode
+  const theme = useMemo(() => createTheme({
+    palette: {
+      mode: themeMode,
+      primary: { main: '#3b82f6' },
+      secondary: { main: '#8b5cf6' },
+      background: {
+        default: themeMode === 'dark' ? '#09090b' : '#ffffff',
+        paper: themeMode === 'dark' ? '#18181b' : '#f4f4f5',
+      }
+    },
+    components: {
+      MuiCssBaseline: {
+        styleOverrides: {
+          body: { scrollbarWidth: 'none', '&::-webkit-scrollbar': { display: 'none' } }
+        }
+      }
+    }
+  }), [themeMode]);
+
   return (
-    <>
+    <ThemeProvider theme={theme}>
+      <CssBaseline />
+
+      {/* App Shell - 100dvh ensures it fits visible screen area, correcting for browser bars */}
       <Box sx={{
-        p: 2,
-        bgcolor: 'rgba(9, 9, 11, 0.95)',
-        backdropFilter: 'blur(12px)',
-        position: 'sticky',
-        top: 0,
-        zIndex: 20,
-        borderBottom: '1px solid',
-        borderColor: 'divider',
+        height: '100dvh',
         display: 'flex',
         flexDirection: 'column',
-        gap: 2
+        overflow: 'hidden' // Prevent body scroll
       }}>
-        {/* Top Row: Title + Settings */}
-        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <Typography variant="h6" sx={{ fontWeight: 700 }}>Music</Typography>
-          <Box sx={{ display: 'flex', gap: 1 }}>
-            <IconButton size="small" onClick={() => setSettingsOpen(true)}>
-              <Settings size={20} />
-            </IconButton>
-            <IconButton size="small" onClick={handleFolderSelect}>
-              <FolderPlus size={20} />
-            </IconButton>
+
+        {/* Top Header */}
+        <Box sx={{
+          p: 2,
+          bgcolor: 'rgba(9, 9, 11, 0.95)',
+          backdropFilter: 'blur(12px)',
+          zIndex: 20,
+          borderBottom: '1px solid',
+          borderColor: 'divider',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 2,
+          flexShrink: 0 // Don't shrink
+        }}>
+          {/* Top Row: Title + Settings */}
+          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <Typography variant="h6" sx={{ fontWeight: 700 }}>Music</Typography>
+            <Box sx={{ display: 'flex', gap: 1 }}>
+              <IconButton size="small" onClick={() => setSettingsOpen(true)}>
+                <Settings size={20} />
+              </IconButton>
+              <IconButton size="small" onClick={handleFolderSelect}>
+                <FolderPlus size={20} />
+              </IconButton>
+            </Box>
           </Box>
+
+          {/* Search Bar */}
+          <Autocomplete
+            multiple
+            freeSolo
+            id="library-search"
+            options={searchOptions}
+            getOptionLabel={(option) => {
+              if (typeof option === 'string') return option;
+              return option.label;
+            }}
+            value={calculateAutocompleteValue}
+            onChange={handleAutocompleteChange}
+            isOptionEqualToValue={(option, value) => option.type === value.type && option.label === value.label}
+            renderTags={(value, getTagProps) =>
+              value.map((option, index) => {
+                const { key, ...tagProps } = getTagProps({ index });
+                return (
+                  <Chip
+                    key={key}
+                    variant="filled"
+                    label={`${option.label}`}
+                    size="small"
+                    color="primary"
+                    {...tagProps}
+                  />
+                );
+              })
+            }
+            renderInput={(params) => (
+              <TextField
+                {...params}
+                variant="outlined"
+                placeholder={filters.length > 0 ? "" : "Search songs, artists..."}
+                size="small"
+                fullWidth
+                sx={{
+                  '& .MuiOutlinedInput-root': {
+                    borderRadius: 3,
+                    bgcolor: 'background.paper'
+                  }
+                }}
+              />
+            )}
+          />
+
+          {/* Hidden File Input & Audio */}
+          <input
+            type="file"
+            ref={fileInputRef}
+            onChange={handleFallbackInput}
+            webkitdirectory=""
+            directory=""
+            multiple
+            style={{ display: 'none' }}
+          />
+          <audio
+            ref={audioRef}
+            style={{
+              position: 'fixed',
+              bottom: 0,
+              left: 0,
+              opacity: 0,
+              pointerEvents: 'none',
+              zIndex: -1
+            }}
+            playsInline
+            autoPlay={false}
+            controls={isIOSSafari()}
+          />
         </Box>
 
-        {/* Search Bar */}
-        <Autocomplete
-          multiple
-          freeSolo
-          id="library-search"
-          options={searchOptions}
-          getOptionLabel={(option) => {
-            if (typeof option === 'string') return option;
-            return option.label;
-          }}
-          value={calculateAutocompleteValue}
-          onChange={handleAutocompleteChange}
-          isOptionEqualToValue={(option, value) => option.type === value.type && option.label === value.label}
-          renderTags={(value, getTagProps) =>
-            value.map((option, index) => {
-              const { key, ...tagProps } = getTagProps({ index });
-              return (
-                <Chip
-                  key={key}
-                  variant="filled"
-                  label={`${option.label}`}
-                  size="small"
-                  color="primary"
-                  {...tagProps}
-                />
-              );
-            })
-          }
-          renderInput={(params) => (
-            <TextField
-              {...params}
-              variant="outlined"
-              placeholder={filters.length > 0 ? "" : "Search songs, artists..."}
-              size="small"
-              fullWidth
-              sx={{
-                '& .MuiOutlinedInput-root': {
-                  borderRadius: 3,
-                  bgcolor: 'background.paper'
-                }
-              }}
-            />
-          )}
-        />
-
-        {/* Hidden File Input */}
-        <input
-          type="file"
-          ref={fileInputRef}
-          onChange={handleFallbackInput}
-          webkitdirectory=""
-          directory=""
-          multiple
-          style={{ display: 'none' }}
-        />
-
-        {/* Hidden Audio Element for iOS/Background Persistence */}
-        <audio
-          ref={audioRef}
-          style={{ display: 'none' }}
-          playsInline // Critical for iOS
-        />
-      </Box>
-
-      {isScanning && (
-        <Box sx={{ px: 2, py: 1, bgcolor: 'background.paper', borderBottom: '1px solid', borderColor: 'divider' }}>
-          <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.5 }}>
-            <Typography variant="caption" color="text.secondary">Scanning...</Typography>
-            <Typography variant="caption" color="text.secondary">
-              {progress.current} / {progress.total}
-            </Typography>
+        {isScanning && (
+          <Box sx={{ px: 2, py: 1, bgcolor: 'background.paper', borderBottom: '1px solid', borderColor: 'divider', flexShrink: 0 }}>
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.5 }}>
+              <Typography variant="caption" color="text.secondary">Scanning...</Typography>
+              <Typography variant="caption" color="text.secondary">
+                {progress.current} / {progress.total}
+              </Typography>
+            </Box>
+            <LinearProgress variant="determinate" value={progress.total > 0 ? (progress.current / progress.total) * 100 : 0} sx={{ height: 2, borderRadius: 1 }} />
           </Box>
-          <LinearProgress variant="determinate" value={progress.total > 0 ? (progress.current / progress.total) * 100 : 0} sx={{ height: 2, borderRadius: 1 }} />
+        )}
+
+        {/* Main Content Area - Scrollable */}
+        <Box sx={{
+          flex: 1,
+          overflowY: 'auto', // Enable internal scrolling
+          overflowX: 'hidden',
+          display: 'flex',
+          flexDirection: 'column',
+          position: 'relative'
+        }}>
+          <TrackList tracks={filteredTracks} onPlay={handlePlay} onFilterChange={handleFilter} currentTrack={currentTrack} isPlaying={isPlaying} />
         </Box>
-      )}
 
-      {/* Main Content Area - Scrollable */}
-      <Box sx={{ flex: 1, overflow: 'hidden', position: 'relative', display: 'flex', flexDirection: 'column' }}>
-        <TrackList tracks={filteredTracks} onPlay={handlePlay} onFilterChange={handleFilter} currentTrack={currentTrack} isPlaying={isPlaying} />
-      </Box>
+        {/* Player Bar - Fixed to bottom of Flex Container */}
+        <Box sx={{
+          zIndex: 20,
+          flexShrink: 0,
+          borderTop: '1px solid',
+          borderColor: 'divider',
+          pb: 'env(safe-area-inset-bottom)' // Respect iOS Home Bar
+        }}>
+          <PlayerBar
+            isPlaying={isPlaying}
+            onTogglePlay={togglePlay}
+            currentTrack={currentTrack}
+            currentTime={currentTime}
+            duration={duration}
+            onSeek={seek}
+            volume={volume}
+            onVolumeChange={changeVolume}
+            onFilter={handleFilter}
+            onNext={() => playNext()}
+            onPrevious={() => playPrevious()}
+          />
+        </Box>
 
-      {/* Player Bar - Sticky Bottom */}
-      <Box sx={{ position: 'sticky', bottom: 0, zIndex: 20 }}>
-        <PlayerBar
-          isPlaying={isPlaying}
-          onTogglePlay={togglePlay}
-          currentTrack={currentTrack}
-          currentTime={currentTime}
-          duration={duration}
-          onSeek={seek}
-          volume={volume}
-          onVolumeChange={changeVolume}
-          onFilter={handleFilter}
-          onNext={() => playNext()}
-          onPrevious={() => playPrevious()}
-        />
       </Box>
 
       <SettingsDialog
         open={settingsOpen}
         onClose={() => setSettingsOpen(false)}
+        themeMode={themeMode}
+        onThemeChange={setThemeMode}
         onReset={resetLibrary}
         onExport={exportUserData}
         onImport={importUserData}
       />
-    </>
+      <IOSWarningSnackbar />
+    </ThemeProvider>
   );
 }
 

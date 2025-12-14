@@ -4,8 +4,10 @@
   --bg-surface-hover: #27272a;
   --text-primary: #fafafa;
   --text-secondary: #a1a1aa;
-  --accent: #6366f1;
-  --accent-hover: #818cf8;
+  --accent: #ff9800;
+  /* Orange */
+  --accent-hover: #f57c00;
+  /* Dark Orange */
   --border: #27272a;
   --glass: rgba(24, 24, 27, 0.7);
 }
@@ -13,10 +15,26 @@
 body {
   margin: 0;
   font-family: 'Inter', system-ui, -apple-system, sans-serif;
-  background-color: var(--bg-main);
+  background-color: #000;
+  /* Black background for the "outside" area */
   color: var(--text-primary);
   -webkit-font-smoothing: antialiased;
   min-height: 100vh;
+}
+
+#root {
+  max-width: 412px;
+  margin: 0 auto;
+  background-color: var(--bg-main);
+  height: 100vh;
+  /* Changed from min-height to height for flex child expansion */
+  position: relative;
+  box-shadow: 0 0 20px rgba(0, 0, 0, 0.5);
+  /* Nice shadow to separate from background */
+  overflow: hidden;
+  /* contain the app */
+  display: flex;
+  flex-direction: column;
 }
 
 ::-webkit-scrollbar {

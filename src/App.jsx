@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
-import { Layout } from './components/Layout';
+
 import { TrackList } from './components/TrackList';
 
 import { PlayerBar } from './components/PlayerBar';
@@ -159,9 +159,112 @@ function App() {
     playTrack(track, filteredTracks);
   };
 
+  // Mobile-first structure:
+  // Header (Sticky) -> TrackList (Scrollable) -> PlayerBar (Sticky Bottom)
   return (
-    <Layout
-      playerBar={
+    <>
+      <Box sx={{
+        p: 2,
+        bgcolor: 'rgba(9, 9, 11, 0.95)',
+        backdropFilter: 'blur(12px)',
+        position: 'sticky',
+        top: 0,
+        zIndex: 20,
+        borderBottom: '1px solid',
+        borderColor: 'divider',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 2
+      }}>
+        {/* Top Row: Title + Settings */}
+        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <Typography variant="h6" sx={{ fontWeight: 700 }}>Music</Typography>
+          <Box sx={{ display: 'flex', gap: 1 }}>
+            <IconButton size="small" onClick={() => setSettingsOpen(true)}>
+              <Settings size={20} />
+            </IconButton>
+            <IconButton size="small" onClick={handleFolderSelect}>
+              <FolderPlus size={20} />
+            </IconButton>
+          </Box>
+        </Box>
+
+        {/* Search Bar */}
+        <Autocomplete
+          multiple
+          freeSolo
+          id="library-search"
+          options={searchOptions}
+          getOptionLabel={(option) => {
+            if (typeof option === 'string') return option;
+            return option.label;
+          }}
+          value={calculateAutocompleteValue}
+          onChange={handleAutocompleteChange}
+          isOptionEqualToValue={(option, value) => option.type === value.type && option.label === value.label}
+          renderTags={(value, getTagProps) =>
+            value.map((option, index) => {
+              const { key, ...tagProps } = getTagProps({ index });
+              return (
+                <Chip
+                  key={key}
+                  variant="filled"
+                  label={`${option.label}`}
+                  size="small"
+                  color="primary"
+                  {...tagProps}
+                />
+              );
+            })
+          }
+          renderInput={(params) => (
+            <TextField
+              {...params}
+              variant="outlined"
+              placeholder={filters.length > 0 ? "" : "Search songs, artists..."}
+              size="small"
+              fullWidth
+              sx={{
+                '& .MuiOutlinedInput-root': {
+                  borderRadius: 3,
+                  bgcolor: 'background.paper'
+                }
+              }}
+            />
+          )}
+        />
+
+        {/* Hidden File Input */}
+        <input
+          type="file"
+          ref={fileInputRef}
+          onChange={handleFallbackInput}
+          webkitdirectory=""
+          directory=""
+          multiple
+          style={{ display: 'none' }}
+        />
+      </Box>
+
+      {isScanning && (
+        <Box sx={{ px: 2, py: 1, bgcolor: 'background.paper', borderBottom: '1px solid', borderColor: 'divider' }}>
+          <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.5 }}>
+            <Typography variant="caption" color="text.secondary">Scanning...</Typography>
+            <Typography variant="caption" color="text.secondary">
+              {progress.current} / {progress.total}
+            </Typography>
+          </Box>
+          <LinearProgress variant="determinate" value={progress.total > 0 ? (progress.current / progress.total) * 100 : 0} sx={{ height: 2, borderRadius: 1 }} />
+        </Box>
+      )}
+
+      {/* Main Content Area - Scrollable */}
+      <Box sx={{ flex: 1, overflow: 'hidden', position: 'relative', display: 'flex', flexDirection: 'column' }}>
+        <TrackList tracks={filteredTracks} onPlay={handlePlay} onFilterChange={handleFilter} currentTrack={currentTrack} isPlaying={isPlaying} />
+      </Box>
+
+      {/* Player Bar - Sticky Bottom */}
+      <Box sx={{ position: 'sticky', bottom: 0, zIndex: 20 }}>
         <PlayerBar
           isPlaying={isPlaying}
           onTogglePlay={togglePlay}
@@ -175,115 +278,6 @@ function App() {
           onNext={() => playNext()}
           onPrevious={() => playPrevious()}
         />
-      }
-    >
-      <Box sx={{
-        p: 3,
-        borderBottom: '1px solid',
-        borderColor: 'divider',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        bgcolor: 'rgba(9, 9, 11, 0.8)',
-        backdropFilter: 'blur(12px)',
-        position: 'sticky',
-        top: 0,
-        zIndex: 5
-      }}>
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, flex: 1, mr: 4 }}>
-          <Typography variant="h1" sx={{ mr: 2 }}>Music Library</Typography>
-
-          <Autocomplete
-            multiple
-            freeSolo
-            id="library-search"
-            options={searchOptions}
-            getOptionLabel={(option) => {
-              // Handle string (freeSolo) or object
-              if (typeof option === 'string') return option;
-              return option.label;
-            }}
-            value={calculateAutocompleteValue}
-            onChange={handleAutocompleteChange}
-            isOptionEqualToValue={(option, value) => option.type === value.type && option.label === value.label}
-            renderTags={(value, getTagProps) =>
-              value.map((option, index) => {
-                const { key, ...tagProps } = getTagProps({ index });
-                return (
-                  <Chip
-                    key={key}
-                    variant="filled"
-                    label={`${option.type === 'search' ? 'Search' : option.type === 'artist' ? 'Artist' : 'Album'}: ${option.label}`}
-                    size="small"
-                    color="primary"
-                    {...tagProps}
-                  />
-                );
-              })
-            }
-            renderInput={(params) => (
-              <TextField
-                {...params}
-                variant="outlined"
-                placeholder={filters.length > 0 ? "" : "Search library..."}
-                size="small"
-              />
-            )}
-            sx={{
-              flex: 1,
-              maxWidth: 600,
-              '& .MuiOutlinedInput-root': {
-                py: 0.5,
-                pr: 1
-              }
-            }}
-          />
-
-
-        </Box>
-
-        <Box sx={{ display: 'flex', gap: 2 }}>
-          <IconButton onClick={() => setSettingsOpen(true)}>
-            <Settings size={20} />
-          </IconButton>
-
-
-          <Button
-            variant="outlined"
-            startIcon={<FolderPlus size={20} />}
-            onClick={handleFolderSelect}
-            sx={{ bgcolor: 'background.paper', color: 'text.primary', borderColor: 'divider' }}
-          >
-            Add Folder
-          </Button>
-          {/* Fallback Input */}
-          <input
-            type="file"
-            ref={fileInputRef}
-            onChange={handleFallbackInput}
-            webkitdirectory=""
-            directory=""
-            multiple
-            style={{ display: 'none' }}
-          />
-        </Box>
-      </Box>
-
-      {isScanning && (
-        <Box sx={{ px: 3, py: 2, borderBottom: '1px solid', borderColor: 'divider', bgcolor: 'background.paper' }}>
-          <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
-            <Typography variant="body2">Scanning library...</Typography>
-            <Typography variant="caption" color="text.secondary">
-              Processed {progress.current} of {progress.total} files
-            </Typography>
-          </Box>
-          <LinearProgress variant="determinate" value={progress.total > 0 ? (progress.current / progress.total) * 100 : 0} />
-        </Box>
-      )}
-
-      {/* Main Content */}
-      <Box sx={{ flex: 1, overflow: 'hidden', position: 'relative' }}>
-        <TrackList tracks={filteredTracks} onPlay={handlePlay} onFilterChange={handleFilter} currentTrack={currentTrack} isPlaying={isPlaying} />
       </Box>
 
       <SettingsDialog
@@ -293,7 +287,7 @@ function App() {
         onExport={exportUserData}
         onImport={importUserData}
       />
-    </Layout>
+    </>
   );
 }
 

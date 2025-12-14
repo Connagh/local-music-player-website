@@ -41,22 +41,57 @@ export function PlayerBar({
 
     return (
         <Box sx={{
-            height: 90,
-            borderTop: '1px solid',
-            borderColor: 'divider',
-            bgcolor: 'rgba(9, 9, 11, 0.95)',
-            backdropFilter: 'blur(12px)',
+            height: 140, // Increased to accommodate extra padding (111 + ~30)
+            bgcolor: '#191A23', // Matches Figma or Dark Theme
             display: 'flex',
-            alignItems: 'center',
-            px: 3,
+            flexDirection: 'column',
             position: 'relative',
-            zIndex: 10
+            zIndex: 10,
+            pb: 2
         }}>
-            {/* Track Info */}
-            <Box sx={{ width: '30%', minWidth: 200, display: 'flex', alignItems: 'center', gap: 2 }}>
+            {/* Progress Bar - Top Edge */}
+            {/* Using Slider but styled to look like the thin bar in Figma */}
+            <Box sx={{ width: '100%', height: 4, position: 'relative', mt: -2 /* Pull up to edge */ }}>
+                <Slider
+                    size="small"
+                    value={currentTime}
+                    max={duration || 0}
+                    onChange={(_, value) => onSeek(value)}
+                    sx={{
+                        color: 'primary.main',
+                        height: 2,
+                        padding: 0,
+                        '& .MuiSlider-thumb': {
+                            width: 0,
+                            height: 0,
+                            '&:hover, &.Mui-focusVisible, &.Mui-active': {
+                                width: 8,
+                                height: 8,
+                            },
+                            transition: 'width 0.2s, height 0.2s'
+                        },
+                        '& .MuiSlider-rail': {
+                            opacity: 0.2,
+                            bgcolor: 'text.primary'
+                        }
+                    }}
+                />
+            </Box>
+
+            {/* Song Metadata - Centered roughly */}
+            <Box sx={{
+                flex: 1,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: 2,
+                px: 2,
+                mt: 2,  // 16px top spacing from scrubber
+                mb: 2   // 16px bottom spacing between info and controls
+            }}>
                 <Box sx={{
-                    width: 56,
-                    height: 56,
+                    width: 40,
+                    height: 40,
                     borderRadius: 1,
                     overflow: 'hidden',
                     bgcolor: 'action.hover',
@@ -69,69 +104,43 @@ export function PlayerBar({
                     {currentTrack?.picture ? (
                         <CoverImage blob={currentTrack.picture} />
                     ) : (
-                        <Music size={24} />
+                        <Music size={20} />
                     )}
                 </Box>
-                <Box sx={{ minWidth: 0 }}>
-                    {currentTrack && (
+                <Box sx={{ minWidth: 0, textAlign: 'left' }}>
+                    {currentTrack ? (
                         <>
-                            <Typography variant="subtitle2" noWrap sx={{ fontWeight: 600 }}>{currentTrack.title}</Typography>
-                            <Typography variant="body2" color="text.secondary" noWrap component="div">
+                            <Typography variant="body2" noWrap sx={{ fontWeight: 600 }}>{currentTrack.title}</Typography>
+                            <Typography variant="caption" color="text.secondary" noWrap component="div">
                                 <ArtistLinks artist={currentTrack.artist} onFilter={onFilter} />
                             </Typography>
-                            {(currentTrack.bitrate || currentTrack.sampleRate) && (
-                                <Box sx={{ display: 'flex', gap: 1, mt: 0.5, opacity: 0.6 }}>
-                                    {currentTrack.bitrate && (
-                                        <Typography variant="caption" sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 0.5, px: 0.5 }}>
-                                            {Math.round(currentTrack.bitrate / 1000)}kbps
-                                        </Typography>
-                                    )}
-                                    {currentTrack.sampleRate && (
-                                        <Typography variant="caption" sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 0.5, px: 0.5 }}>
-                                            {Math.round(currentTrack.sampleRate / 100) / 10}kHz
-                                        </Typography>
-                                    )}
-                                </Box>
-                            )}
                         </>
+                    ) : (
+                        <Typography variant="body2" color="text.secondary">Select a song</Typography>
                     )}
                 </Box>
             </Box>
 
-            {/* Controls */}
-            <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1, maxWidth: 600 }}>
-                <Stack direction="row" spacing={2} alignItems="center">
-                    <IconButton size="small" onClick={onPrevious} sx={{ color: 'text.secondary' }}><SkipBack size={20} /></IconButton>
-                    <IconButton onClick={onTogglePlay} sx={{ bgcolor: 'text.primary', color: 'background.default', '&:hover': { bgcolor: 'primary.main', color: 'white' } }}>
-                        {isPlaying ? <Pause size={24} /> : <Play size={24} />}
-                    </IconButton>
-                    <IconButton size="small" onClick={onNext} sx={{ color: 'text.secondary' }}><SkipForward size={20} /></IconButton>
-                </Stack>
-                <Stack direction="row" spacing={2} alignItems="center" sx={{ width: '100%', color: 'text.secondary', fontSize: '0.75rem' }}>
-                    <Typography variant="caption" sx={{ minWidth: 40, textAlign: 'right' }}>{formatTime(currentTime)}</Typography>
-                    <Slider
-                        size="small"
-                        value={currentTime}
-                        max={duration || 0}
-                        onChange={(_, value) => onSeek(value)}
-                        sx={{ flex: 1 }}
-                    />
-                    <Typography variant="caption" sx={{ minWidth: 40 }}>{formatTime(duration)}</Typography>
-                </Stack>
-            </Box>
-
-            {/* Volume */}
-            <Box sx={{ width: '30%', display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 2, color: 'text.secondary' }}>
-                <Volume2 size={20} />
-                <Slider
-                    size="small"
-                    value={volume}
-                    min={0}
-                    max={1}
-                    step={0.01}
-                    onChange={(_, value) => onVolumeChange(value)}
-                    sx={{ width: 100 }}
-                />
+            {/* Controls - Bottom Row */}
+            <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 4, mb: 1 }}>
+                <IconButton onClick={onPrevious} sx={{ color: 'text.primary' }}>
+                    <SkipBack size={24} />
+                </IconButton>
+                <IconButton
+                    onClick={onTogglePlay}
+                    sx={{
+                        bgcolor: 'primary.main',
+                        color: 'white',
+                        width: 48,
+                        height: 48,
+                        '&:hover': { bgcolor: 'primary.dark' }
+                    }}
+                >
+                    {isPlaying ? <Pause size={28} /> : <Play size={28} />}
+                </IconButton>
+                <IconButton onClick={onNext} sx={{ color: 'text.primary' }}>
+                    <SkipForward size={24} />
+                </IconButton>
             </Box>
         </Box>
     );

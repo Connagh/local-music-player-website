@@ -1,6 +1,6 @@
-# Local Music Player
+# Local Music Player Website
 
-A privacy-focused, local-first music player that runs entirely in your browser. This application allows you to scan your local music library, manage playlists, and enjoy your collection without uploading any data to the cloud.
+A local-first music player that runs entirely in your browser. This application allows you to add your local music library, manage playlists, and enjoy your collection without uploading any data to the internet.
 
 ## Features
 
@@ -26,7 +26,7 @@ A privacy-focused, local-first music player that runs entirely in your browser. 
 - **State Management**: React Hooks (`useReducer`, `useState`, `useContext`)
 - **Persistence**: [idb-keyval](https://github.com/jakearchibald/idb-keyval)
 - **Audio Processing**: [music-metadata-browser](https://github.com/borewit/music-metadata-browser)
-- **Virtualization**: [react-virtuoso](https://virtuoso.dev/) for efficient rendering of large song lists.
+- **Virtualizstion**: [react-virtuoso](https://virtuoso.dev/) for efficient rendering of large song lists.
 
 ## Getting Started
 

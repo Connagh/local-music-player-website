@@ -68,10 +68,8 @@ export function useAudio(onTrackEnd) {
     }, [currentTrack]);
 
     // Ref to hold latest version of functions to avoid stale closures in Media Session handlers
-    const handlersRef = useRef({ playNext, playPrevious, seek });
-    useEffect(() => {
-        handlersRef.current = { playNext, playPrevious, seek };
-    }, [playNext, playPrevious, seek]);
+    const handlersRef = useRef({}); // Initialize empty to avoid ReferenceError
+
 
     useEffect(() => {
         if (!('mediaSession' in navigator)) return;
@@ -292,6 +290,11 @@ export function useAudio(onTrackEnd) {
         audioRef.current.volume = vol;
         setVolume(vol);
     };
+
+    // Update handlers ref when functions change (or on every render if they are unstable)
+    useEffect(() => {
+        handlersRef.current = { playNext, playPrevious, seek };
+    }, [playNext, playPrevious, seek]);
 
     return {
         isPlaying,

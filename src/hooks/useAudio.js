@@ -202,6 +202,118 @@ export function useAudio(onTrackEnd) {
         setVolume(vol);
     };
 
+    // Media Session API Integration
+    useEffect(() => {
+        if (!('mediaSession' in navigator)) return;
+
+        // Function to update metadata
+        const updateMetadata = () => {
+            if (!currentTrack) {
+                navigator.mediaSession.metadata = null;
+                return;
+            }
+
+            let artworkUrl = null;
+            if (currentTrack.picture) {
+                artworkUrl = URL.createObjectURL(currentTrack.picture);
+            }
+
+            navigator.mediaSession.metadata = new MediaMetadata({
+                title: currentTrack.title,
+                artist: currentTrack.artist,
+                album: currentTrack.album,
+                artwork: artworkUrl ? [{ src: artworkUrl, sizes: '512x512', type: 'image/png' }] : []
+            });
+
+            // Cleanup old artwork URL when track changes (or component unmounts - handled in cleanup)
+            return () => {
+                if (artworkUrl) URL.revokeObjectURL(artworkUrl);
+            };
+        };
+
+        const cleanupMetadata = updateMetadata();
+
+        return () => {
+            if (cleanupMetadata) cleanupMetadata();
+        };
+    }, [currentTrack]);
+
+    // Update Playback State
+    useEffect(() => {
+        if ('mediaSession' in navigator) {
+            navigator.mediaSession.playbackState = isPlaying ? 'playing' : 'paused';
+        }
+    }, [isPlaying]);
+
+    // Register Action Handlers (Once or when dependencies change? Refs are better for stability)
+    useEffect(() => {
+        if (!('mediaSession' in navigator)) return;
+
+        const actionHandlers = [
+            ['play', () => {
+                // Use ref to toggle play
+                // But togglePlay depends on ref.current which is accessible? 
+                // Wait, togglePlay in this scope uses state `isPlaying`.
+                // We should use audioRef directly or safer:
+                // Just calling togglePlay() here works IF we re-register when togglePlay changes.
+                // OR we can implement the logic using refs.
+                // Let's implement logic using refs to be safe and avoid dependecy churn.
+
+                audioRef.current.play()
+                    .then(() => setIsPlaying(true))
+                    .catch(e => console.error(e));
+            }],
+            ['pause', () => {
+                audioRef.current.pause();
+                setIsPlaying(false);
+            }],
+            ['previoustrack', () => {
+                // Logic from playPrevious
+                const audio = audioRef.current;
+                if (audio.currentTime > 3) {
+                    audio.currentTime = 0;
+                    setCurrentTime(0); // Sync state
+                    return;
+                }
+                const q = queueRef.current;
+                const c = currentTrackRef.current;
+                if (!c || q.length === 0) return;
+                const idx = q.findIndex(t => t.id === c.id);
+                if (idx <= 0) return;
+                playTrack(q[idx - 1], q); // Pass q explicitly to be safe, though playTrack handles it
+            }],
+            ['nexttrack', () => {
+                // Logic from playNext
+                const q = queueRef.current;
+                const c = currentTrackRef.current;
+                if (!c || q.length === 0) return;
+                const idx = q.findIndex(t => t.id === c.id);
+                if (idx === -1 || idx === q.length - 1) return;
+                playTrack(q[idx + 1], q);
+            }],
+            ['seekto', (details) => {
+                if (details.seekTime !== undefined) {
+                    audioRef.current.currentTime = details.seekTime;
+                    setCurrentTime(details.seekTime);
+                }
+            }]
+        ];
+
+        for (const [action, handler] of actionHandlers) {
+            try {
+                navigator.mediaSession.setActionHandler(action, handler);
+            } catch (error) {
+                console.warn(`The media session action "${action}" is not supported yet.`);
+            }
+        }
+
+        return () => {
+            // Optional: reset handlers? 
+            // navigator.mediaSession.setActionHandler('play', null);
+            // etc, but mostly fine to leave them.
+        };
+    }, []); // Empty dependency array as we use refs!
+
     return {
         isPlaying,
         currentTime,
@@ -216,3 +328,4 @@ export function useAudio(onTrackEnd) {
         changeVolume
     };
 }
+

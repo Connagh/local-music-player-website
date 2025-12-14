@@ -1,17 +1,13 @@
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { Layout } from './components/Layout';
 import { TrackList } from './components/TrackList';
-import { TileList } from './components/TileList';
-import { AlbumGrid } from './components/AlbumGrid';
-import { ArtistGrid } from './components/ArtistGrid';
-import { LibraryGraph } from './components/LibraryGraph';
 import { PlayerBar } from './components/PlayerBar';
 import { SettingsDialog } from './components/SettingsDialog';
 import { splitArtistString } from './utils/artistUtils';
 import { useLibrary } from './hooks/useLibrary';
 import { useAudio } from './hooks/useAudio';
-import { FolderPlus, LayoutList, LayoutGrid, Settings, X, Search, Disc, Users } from 'lucide-react';
-import { Box, Typography, Button, IconButton, ToggleButton, ToggleButtonGroup, LinearProgress, Chip, TextField, InputAdornment, Autocomplete } from '@mui/material';
+import { FolderPlus, LayoutList, Settings, X, Search } from 'lucide-react';
+import { Box, Typography, Button, IconButton, LinearProgress, Chip, TextField, InputAdornment, Autocomplete } from '@mui/material';
 
 function App() {
   const { tracks, isScanning, progress, addFolder, addFilesFromInput, resetLibrary, incrementPlayCount, exportUserData, importUserData } = useLibrary();
@@ -35,8 +31,6 @@ function App() {
     }
   });
 
-  const [viewMode, setViewMode] = useState('list'); // 'list' or 'tile'
-  const [libraryView, setLibraryView] = useState('songs'); // 'songs' | 'albums' | 'artists'
   const [filters, setFilters] = useState([]); // Array of { id, type, value }
   const [settingsOpen, setSettingsOpen] = useState(false);
 
@@ -132,97 +126,11 @@ function App() {
     });
   }, [tracks, filters]);
 
-  // Derived Data: Albums (basing on filteredTracks)
-  const albums = useMemo(() => {
-    const albumMap = new Map();
-    filteredTracks.forEach(track => {
-      const key = track.album;
-      // Unknown Album handling?
-      if (!albumMap.has(key)) {
-        albumMap.set(key, {
-          name: track.album,
-          artist: track.artist, // Representative artist
-          picture: track.picture, // First picture found
-          count: 0
-        });
-      }
-      const album = albumMap.get(key);
-      album.count++;
-      if (!album.picture && track.picture) album.picture = track.picture; // Upgrade picture if missing
-    });
-    return Array.from(albumMap.values()).sort((a, b) => a.name.localeCompare(b.name));
-  }, [filteredTracks]);
-
-  // Derived Data: Artists (basing on filteredTracks)
-  const artists = useMemo(() => {
-    const artistMap = new Map();
-    filteredTracks.forEach(track => {
-      // Split artists using utility to handle exceptions
-      const names = splitArtistString(track.artist);
-      names.forEach(name => {
-        // SMART FILTER: 
-        // If we have filters, we only want to include this specific artist IF:
-        // 1. It matches the filter directly (Artist match or Search term match)
-        // 2. OR the filter matched the Track Title or Album (Context match)
-        // This prevents "Featured" artists from showing up when searching for the Main artist.
-
-        if (filters.length > 0) {
-          const isRelevant = filters.every(filter => {
-            const fVal = filter.value.toLowerCase();
-            if (filter.type === 'search') {
-              // Relevant if Name matches.
-              // We Do NOT match Title/Album here to avoid "Featured" artists cluttering the view.
-              // If user searches "Kanye", they want Kanye, not everyone who has a song with him.
-              return name.toLowerCase().includes(fVal);
-            }
-            if (filter.type === 'artist') {
-              // Must match artist name
-              return name.toLowerCase().includes(fVal);
-            }
-            if (filter.type === 'album') {
-              // If filtering by album, all artists on it are relevant
-              return true;
-            }
-            return true;
-          });
-
-          if (!isRelevant) return;
-        }
-
-        if (!artistMap.has(name)) {
-          artistMap.set(name, {
-            name: name,
-            picture: track.picture,
-            count: 0
-          });
-        }
-        const artist = artistMap.get(name);
-        artist.count++;
-        // Try to find a good picture. 
-        // Optimization: Maybe prioritize pictures where this artist is primary?
-        // For now simpler: Just take first non-null
-        if (!artist.picture && track.picture) artist.picture = track.picture;
-      });
-    });
-    return Array.from(artistMap.values()).sort((a, b) => a.name.localeCompare(b.name));
-  }, [filteredTracks, filters]);
-
 
   const handleFilter = useCallback((type, value) => {
     // Single filter mode: Replace existing filters
     setFilters([{ id: Date.now() + Math.random(), type, value }]);
   }, []);
-
-  /* Fixed: Use handleFilter instead of handleFilterChange */
-  const handleAlbumSelect = useCallback((album) => {
-    handleFilter('album', album);
-    setLibraryView('songs');
-  }, [handleFilter]);
-
-  const handleArtistSelect = useCallback((artist) => {
-    handleFilter('artist', artist);
-    setLibraryView('songs');
-  }, [handleFilter]);
 
   const handleReset = async () => {
     await resetLibrary();
@@ -327,41 +235,12 @@ function App() {
               }
             }}
           />
-
-          {/* Library View Toggles */}
-          <ToggleButtonGroup
-            value={libraryView}
-            exclusive
-            onChange={(e, nextView) => { if (nextView) setLibraryView(nextView); }}
-            size="small"
-            sx={{ bgcolor: 'background.paper' }}
-          >
-            <ToggleButton value="songs">Songs</ToggleButton>
-            <ToggleButton value="albums">Albums</ToggleButton>
-            <ToggleButton value="artists">Artists</ToggleButton>
-            <ToggleButton value="graph">Graph</ToggleButton>
-          </ToggleButtonGroup>
         </Box>
 
         <Box sx={{ display: 'flex', gap: 2 }}>
           <IconButton onClick={() => setSettingsOpen(true)}>
             <Settings size={20} />
           </IconButton>
-
-          <ToggleButtonGroup
-            value={viewMode}
-            exclusive
-            onChange={(_, newView) => newView && setViewMode(newView)}
-            size="small"
-            sx={{ bgcolor: 'background.paper' }}
-          >
-            <ToggleButton value="list" aria-label="list view">
-              <LayoutList size={20} />
-            </ToggleButton>
-            <ToggleButton value="tile" aria-label="tile view">
-              <LayoutGrid size={20} />
-            </ToggleButton>
-          </ToggleButtonGroup>
 
           <Button
             variant="outlined"
@@ -398,34 +277,7 @@ function App() {
 
       {/* Main Content */}
       <Box sx={{ flex: 1, overflow: 'hidden', position: 'relative' }}>
-        {libraryView === 'graph' ? (
-          <LibraryGraph
-            tracks={filteredTracks}
-            onPlay={handlePlay}
-            onFilter={(type, val) => {
-              handleFilter(type, val);
-              setLibraryView('songs');
-            }}
-          />
-        ) : libraryView === 'albums' ? (
-          <Box sx={{ height: '100%', overflow: 'hidden' }}>
-            <AlbumGrid
-              albums={albums}
-              onSelect={handleAlbumSelect}
-            />
-          </Box>
-        ) : libraryView === 'artists' ? (
-          <Box sx={{ height: '100%', overflow: 'hidden' }}>
-            <ArtistGrid
-              artists={artists}
-              onSelect={handleArtistSelect}
-            />
-          </Box>
-        ) : viewMode === 'list' ? (
-          <TrackList tracks={filteredTracks} onPlay={handlePlay} onFilterChange={handleFilter} currentTrack={currentTrack} isPlaying={isPlaying} />
-        ) : (
-          <TileList tracks={filteredTracks} onPlay={handlePlay} currentTrack={currentTrack} />
-        )}
+        <TrackList tracks={filteredTracks} onPlay={handlePlay} onFilter={handleFilter} currentTrack={currentTrack} isPlaying={isPlaying} />
       </Box>
 
       <SettingsDialog

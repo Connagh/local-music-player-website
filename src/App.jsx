@@ -281,7 +281,6 @@ function App() {
             {/* Likes Filter Chip */}
             <Chip
               clickable
-              icon={<Heart size={16} fill={filters.some(f => f.type === 'likes') ? "currentColor" : "none"} />}
               label="Likes"
               color={filters.some(f => f.type === 'likes') ? "primary" : "default"}
               variant={filters.some(f => f.type === 'likes') ? "filled" : "outlined"}
@@ -319,7 +318,7 @@ function App() {
         display: 'flex',
         flexDirection: 'column',
         pt: '120px', // Space for fixed header
-        pb: '140px', // Space for fixed footer
+        pb: '121px', // Space for fixed footer (105) + Dead Zone (16)
       }}>
         {isScanning && (
           <Box sx={{ px: 2, py: 1, bgcolor: 'background.paper', borderBottom: '1px solid', borderColor: 'divider' }}>
@@ -332,8 +331,17 @@ function App() {
             <LinearProgress variant="determinate" value={progress.total > 0 ? (progress.current / progress.total) * 100 : 0} sx={{ height: 2, borderRadius: 1 }} />
           </Box>
         )}
-        <TrackList tracks={filteredTracks} onPlay={handlePlay} onFilterChange={handleFilter} currentTrack={currentTrack} isPlaying={isPlaying} />
+        <TrackList tracks={filteredTracks} onPlay={handlePlay} onFilter={handleFilter} currentTrack={currentTrack} isPlaying={isPlaying} />
       </Box>
+
+      <Box sx={{
+        position: 'fixed',
+        bottom: 105, // Height of player bar
+        left: 0,
+        right: 0,
+        height: 16,
+        zIndex: 19, // Below player bar (20), above content
+      }} />
 
       {/* Player Bar - Anchored Fixed Bottom */}
       <Box sx={{
